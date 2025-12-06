@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wine Recommender</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        /* Существующие стили остаются */
+        .slider-value { display: inline-block; min-width: 50px; font-weight: bold; color: #0d6efd; }
+        .filter-section { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .filter-section h6 { color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px; margin-bottom: 15px; }
+        .wine-card { transition: transform 0.3s ease, box-shadow 0.3s ease; border: 1px solid #dee2e6; border-radius: 10px; overflow: hidden; }
+        .wine-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .wine-type-badge { position: absolute; top: 10px; right: 10px; z-index: 1; }
+        .similarity-meter { height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+        .similarity-fill { height: 100%; background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcf7f); transition: width 0.5s ease; }
+        .country-flag { width: 20px; height: auto; margin-right: 8px; border-radius: 2px; }
+        .price-tag { font-size: 1.1em; font-weight: bold; color: #198754; }
+        
+        /* Новые стили для выбранных вин */
+        .selected-wine-card { border: 2px solid #0d6efd; background-color: #f0f8ff; }
+        .selected-wine-card .remove-btn { opacity: 0; transition: opacity 0.3s ease; }
+        .selected-wine-card:hover .remove-btn { opacity: 1; }
+        .wine-select-item { cursor: pointer; padding: 8px 12px; border-radius: 6px; margin: 2px 0; transition: all 0.2s ease; }
+        .wine-select-item:hover { background-color: #e9ecef; }
+        .wine-select-item.selected { background-color: #0d6efd; color: white; }
+        .badge-small { font-size: 0.7em; padding: 2px 6px; }
+        
+        /* Стили для табов */
+        .nav-tabs .nav-link { border: none; color: #6c757d; font-weight: 500; padding: 12px 20px; }
+        .nav-tabs .nav-link.active { color: #0d6efd; border-bottom: 3px solid #0d6efd; background-color: transparent; }
+        .nav-tabs .nav-link:hover:not(.active) { color: #495057; }
+        
+        /* Анимация переключения табов */
+        .tab-pane { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Стили для подсказок */
+        .hint-bubble { position: absolute; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; width: 300px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Заголовок -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 text-danger"><i class="bi bi-cup-straw"></i> Wine Explorer</h1>
+            <p class="lead text-muted">Три способа найти идеальное вино с AI-помощником</p>
+        </div>
+
+        <!-- Навигация по табам -->
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="filter-tab" data-bs-toggle="tab" data-bs-target="#filter-tab-pane" type="button">
+                    <i class="bi bi-funnel"></i> Поиск с фильтрами
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="taste-tab" data-bs-toggle="tab" data-bs-target="#taste-tab-pane" type="button">
+                    <i class="bi bi-heart"></i> По вашим предпочтениям
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="simple-tab" data-bs-toggle="tab" data-bs-target="#simple-tab-pane" type="button">
+                    <i class="bi bi-search"></i> Простой поиск
+                </button>
+            </li>
+        </ul>
+
+        <!-- Содержимое табов -->
+        <div class="tab-content" id="mainTabsContent">
+            <!-- ТАБ 1: Поиск с фильтрами -->
+            <div class="tab-pane fade show active" id="filter-tab-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="filter-section">
+                            <h6><i class="bi bi-funnel"></i> Фильтры поиска</h6>
+                            
+                            <!-- Поисковый запрос -->
+                            <div class="mb-4">
+                                <label for="searchQuery" class="form-label">Опишите, что вы ищете:</label>
+                                <textarea class="form-control" id="searchQuery" rows="3" 
+                                          placeholder="Например: Богатое красное вино для стейка или легкое белое для рыбы"></textarea>
+                            </div>
+                            
+                            <!-- Фильтр Variety -->
+                            <div class="mb-4">
+                                <label class="form-label">Тип вина (Variety):</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-graph-up"></i></span>
+                                    <select class="form-select" id="varietyFilter">
+                                        <option value="Red Blend" selected>Red Blend</option>
+                                        <!-- Другие варианты будут загружены динамически -->
+                                    </select>
+                                </div>
+                                <div class="form-text">Основной сорт винограда или смесь</div>
+                            </div>
+                            
+                            <!-- Фильтр Country -->
+                            <div class="mb-4">
+                                <label class="form-label">Страна происхождения:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-globe"></i></span>
+                                    <select class="form-select" id="countryFilter">
+                                        <option value="">Все страны</option>
+                                        <!-- Страны будут загружены динамически -->
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Фильтр Max Price -->
+                            <div class="mb-4">
+                                <label class="form-label">Максимальная цена: <span id="priceValue" class="slider-value">$100</span></label>
+                                <input type="range" class="form-range" id="maxPriceFilter" min="10" max="500" step="5" value="100">
+                                <div class="d-flex justify-content-between">
+                                    <small>$10</small>
+                                    <small>$500+</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Кнопка поиска -->
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-danger btn-lg" onclick="getFilteredRecommendations()">
+                                    <i class="bi bi-search"></i> Найти вина
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="resetFilters()">
+                                    <i class="bi bi-arrow-clockwise"></i> Сбросить фильтры
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Результаты для таба 1 -->
+                    <div class="col-lg-8">
+                        <div id="filterResultsSection" style="display: none;">
+                            <!-- Комментарий LLM -->
+                            <div id="filterLLMComment" class="card mb-4">
+                                <div class="card-header bg-danger text-white">
+                                    <i class="bi bi-chat-left-text"></i> AI-рекомендация
+                                </div>
+                                <div class="card-body">
+                                    <p id="filterLLMCommentText" class="fst-italic mb-0"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Результаты -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 id="filterResultsCount">Найдено 0 вин</h3>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-outline-secondary" onclick="sortResults('similarity', 'filter')">
+                                        <i class="bi bi-sort-up"></i> По релевантности
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="sortResults('price', 'filter')">
+                                        <i class="bi bi-currency-dollar"></i> По цене
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="sortResults('rating', 'filter')">
+                                        <i class="bi bi-star"></i> По рейтингу
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="filterResultsContainer" class="row"></div>
+                            
+                            <!-- Пагинация -->
+                            <nav id="filterPagination" class="mt-4" style="display: none;">
+                                <ul class="pagination justify-content-center"></ul>
+                            </nav>
+                        </div>
+                        
+                        <!-- Сообщение при первом заходе -->
+                        <div id="filterWelcome" class="text-center mt-5">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h3 class="text-muted mb-4">
+                                        <i class="bi bi-funnel"></i> Используйте фильтры для точного поиска
+                                    </h3>
+                                    <p class="text-muted">
+                                        Выберите тип вина, страну происхождения и максимальную цену,<br>
+                                        чтобы найти идеальное вино для любого случая.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ТАБ 2: Рекомендации по вкусу -->
+            <div class="tab-pane fade" id="taste-tab-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="filter-section">
+                            <h6><i class="bi bi-heart"></i> Выберите ваши любимые вина</h6>
+                            
+                            <!-- Поиск вин -->
+                            <div class="mb-3">
+                                <label class="form-label">Поиск вин:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="wineSearch" 
+                                           placeholder="Название, сорт или страна" 
+                                           onkeyup="filterWineList()">
+                                </div>
+                            </div>
+                            
+                            <!-- Выпадающий список вин -->
+                            <div class="mb-3">
+                                <label class="form-label">Доступные вина:</label>
+                                <div class="border rounded" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="wineSelectList">
+                                        <!-- Список будет загружен динамически -->
+                                    </div>
+                                </div>
+                                <div class="form-text">Выберите вина, которые вам нравятся (можно несколько)</div>
+                            </div>
+                            
+                            <!-- Выбранные вина -->
+                            <div class="mb-3">
+                                <label class="form-label">Выбрано вин: <span id="selectedCount" class="badge bg-primary">0</span></label>
+                                <div id="selectedWinesList" class="border rounded p-2" style="min-height: 100px; max-height: 200px; overflow-y: auto;">
+                                    <!-- Выбранные вина будут здесь -->
+                                </div>
+                            </div>
+                            
+                            <!-- Кнопки управления -->
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success btn-lg" onclick="getTasteRecommendations()" id="tasteRecommendBtn" disabled>
+                                    <i class="bi bi-magic"></i> Получить рекомендации
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="clearSelectedWines()">
+                                    <i class="bi bi-trash"></i> Очистить выбор
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Подсказка -->
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Совет:</strong> Выберите 3-5 вин, которые вам нравятся. 
+                            Система найдет похожие варианты на основе ваших предпочтений.
+                        </div>
+                    </div>
+                    
+                    <!-- Результаты для таба 2 -->
+                    <div class="col-lg-8">
+                        <div id="tasteResultsSection" style="display: none;">
+                            <!-- Комментарий LLM -->
+                            <div id="tasteLLMComment" class="card mb-4">
+                                <div class="card-header bg-success text-white">
+                                    <i class="bi bi-chat-left-text"></i> AI анализирует ваши предпочтения
+                                </div>
+                                <div class="card-body">
+                                    <p id="tasteLLMCommentText" class="fst-italic mb-0"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Анализ предпочтений -->
+                            <div id="tasteAnalysis" class="card mb-4">
+                                <div class="card-header">
+                                    <i class="bi bi-bar-chart"></i> Анализ ваших предпочтений
+                                </div>
+                                <div class="card-body">
+                                    <div class="row" id="preferenceAnalysis">
+                                        <!-- Анализ будет добавлен динамически -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Рекомендации -->
+                            <h3 id="tasteResultsCount" class="mb-3">Персональные рекомендации</h3>
+                            <div id="tasteResultsContainer" class="row"></div>
+                        </div>
+                        
+                        <!-- Сообщение при первом заходе -->
+                        <div id="tasteWelcome" class="text-center mt-5">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h3 class="text-muted mb-4">
+                                        <i class="bi bi-heart-fill text-danger"></i> Персональные рекомендации
+                                    </h3>
+                                    <p class="text-muted mb-4">
+                                        Выберите вина, которые вам нравятся, и наш AI найдет похожие варианты<br>
+                                        на основе ваших вкусовых предпочтений.
+                                    </p>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-body">
+                                                    <i class="bi bi-check2-circle display-4 text-success"></i>
+                                                    <h5>1. Выберите</h5>
+                                                    <p>Отметьте вина, которые вам понравились</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-body">
+                                                    <i class="bi bi-robot display-4 text-success"></i>
+                                                    <h5>2. Анализ</h5>
+                                                    <p>AI изучит ваши предпочтения</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-body">
+                                                    <i class="bi bi-lightbulb display-4 text-success"></i>
+                                                    <h5>3. Рекомендации</h5>
+                                                    <p>Получите персональные предложения</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-body">
+                                                    <i class="bi bi-wine-glass display-4 text-success"></i>
+                                                    <h5>4. Наслаждайтесь</h5>
+                                                    <p>Откройте новые любимые вина</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ТАБ 3: Простой поиск -->
+            <div class="tab-pane fade" id="simple-tab-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="filter-section text-center">
+                            <h6><i class="bi bi-search"></i> Простой поиск вина</h6>
+                            
+                            <div class="mb-4">
+                                <label for="simpleQuery" class="form-label">Опишите, какое вино вы ищете:</label>
+                                <textarea class="form-control" id="simpleQuery" rows="4" 
+                                          placeholder="Например: 'Ищу легкое белое вино с цитрусовыми нотами для летнего вечера' 
+Или: 'Нужно насыщенное красное вино с танинами для подарочка'
+Или: 'Посоветуйте игристое вино для праздника'"></textarea>
+                            </div>
+                            
+                            <div class="d-grid gap-2 col-lg-6 mx-auto">
+                                <button class="btn btn-primary btn-lg" onclick="getSimpleRecommendations()">
+                                    <i class="bi bi-stars"></i> Получить рекомендации
+                                </button>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i> Просто опишите, что вам нужно, и AI подберет лучшие варианты
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Результаты для таба 3 -->
+                        <div id="simpleResultsSection" style="display: none;" class="mt-4">
+                            <!-- Комментарий LLM -->
+                            <div id="simpleLLMComment" class="card mb-4">
+                                <div class="card-header bg-primary text-white">
+                                    <i class="bi bi-chat-left-text"></i> AI-рекомендация
+                                </div>
+                                <div class="card-body">
+                                    <p id="simpleLLMCommentText" class="fst-italic mb-0"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Рекомендации -->
+                            <h3 class="mb-3">Подобранные варианты</h3>
+                            <div id="simpleResultsContainer" class="row"></div>
+                        </div>
+                        
+                        <!-- Быстрые подсказки -->
+                        <div class="mt-4">
+                            <h6 class="text-muted mb-3"><i class="bi bi-lightning"></i> Популярные запросы:</h6>
+                            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                <button class="btn btn-sm btn-outline-primary" onclick="setSimpleQuery('Игристое вино для праздника')">Для праздника</button>
+                                <button class="btn btn-sm btn-outline-success" onclick="setSimpleQuery('Легкое розовое вино для пикника')">Для пикника</button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="setSimpleQuery('Богатое красное вино для стейка')">Для стейка</button>
+                                <button class="btn btn-sm btn-outline-info" onclick="setSimpleQuery('Свежее белое вино для морепродуктов')">Для морепродуктов</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="setSimpleQuery('Сладкое десертное вино')">Десертное</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="setSimpleQuery('Необычное вино для подарка')">Для подарка</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно с деталями вина (остается без изменений) -->
+    <div class="modal fade" id="wineDetailsModal" tabindex="-1">
+        <!-- ... существующий код модального окна ... -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Глобальные переменные
+        let allWines = [];
+        let selectedWines = [];
+        let filterResults = { current: [], page: 1 };
+        let tasteResults = { current: [], page: 1 };
+        let simpleResults = { current: [], page: 1 };
+        const resultsPerPage = 6;
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCountryFilter();
+            initializeVarietyFilter();
+            initializeWineSelectList();
+            loadSavedSelections();
+            
+            // Слушатель для слайдера цены
+            document.getElementById('maxPriceFilter').addEventListener('input', function() {
+                document.getElementById('priceValue').textContent = `$${this.value}`;
+            });
+        });
+
+        // ============ ТАБ 1: Функции для поиска с фильтрами ============
+        async function getFilteredRecommendations() {
+            const query = document.getElementById('searchQuery').value;
+            const variety = document.getElementById('varietyFilter').value;
+            const country = document.getElementById('countryFilter').value;
+            const maxPrice = document.getElementById('maxPriceFilter').value;
+
+            if (!query.trim()) {
+                showAlert('Пожалуйста, опишите, какое вино вы ищете.', 'warning');
+                return;
+            }
+
+            showLoading('filter');
+            
+            try {
+                const response = await fetch('/api/recommend/filtered', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        filters: { variety, country, max_price: parseInt(maxPrice) }
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading('filter');
+                
+                if (data.error) throw new Error(data.error);
+
+                filterResults.current = data.recommendations;
+                filterResults.page = 1;
+                
+                displayFilterResults();
+                displayLLMComment('filter', data.llm_comment);
+                
+            } catch (error) {
+                hideLoading('filter');
+                showAlert(`Ошибка: ${error.message}`, 'danger');
+            }
+        }
+
+        function displayFilterResults() {
+            const section = document.getElementById('filterResultsSection');
+            const welcome = document.getElementById('filterWelcome');
+            const count = document.getElementById('filterResultsCount');
+            const container = document.getElementById('filterResultsContainer');
+            const pagination = document.getElementById('filterPagination');
+
+            if (filterResults.current.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info">Ничего не найдено</div></div>';
+                count.textContent = 'Найдено 0 вин';
+                section.style.display = 'block';
+                welcome.style.display = 'none';
+                pagination.style.display = 'none';
+                return;
+            }
+
+            count.textContent = `Найдено ${filterResults.current.length} вин`;
+            displayResultsPage('filter');
+            
+            if (filterResults.current.length > resultsPerPage) {
+                setupPagination('filter');
+                pagination.style.display = 'flex';
+            } else {
+                pagination.style.display = 'none';
+            }
+            
+            section.style.display = 'block';
+            welcome.style.display = 'none';
+        }
+
+        function sortResults(criteria, tab) {
+            let results;
+            if (tab === 'filter') results = filterResults.current;
+            else if (tab === 'taste') results = tasteResults.current;
+            else results = simpleResults.current;
+
+            switch(criteria) {
+                case 'similarity': results.sort((a, b) => b.similarity_score - a.similarity_score); break;
+                case 'price': results.sort((a, b) => a.price - b.price); break;
+                case 'rating': results.sort((a, b) => b.rating - a.rating); break;
+            }
+
+            if (tab === 'filter') displayResultsPage('filter');
+            else if (tab === 'taste') displayResultsPage('taste');
+            else displayResultsPage('simple');
+        }
+
+        // ============ ТАБ 2: Функции для рекомендаций по вкусу ============
+        function initializeWineSelectList() {
+            fetch('/api/wines/list')
+                .then(response => response.json())
+                .then(data => {
+                    allWines = data;
+                    renderWineSelectList();
+                    updateSelectedWinesList();
+                })
+                .catch(error => console.error('Error loading wines:', error));
+        }
+
+        function renderWineSelectList(filterText = '') {
+            const container = document.getElementById('wineSelectList');
+            container.innerHTML = '';
+
+            const filteredWines = allWines.filter(wine => {
+                if (!filterText) return true;
+                const searchStr = `${wine.name} ${wine.variety} ${wine.country}`.toLowerCase();
+                return searchStr.includes(filterText.toLowerCase());
+            });
+
+            filteredWines.forEach(wine => {
+                const isSelected = selectedWines.some(sw => sw.id === wine.id);
+                const item = document.createElement('div');
+                item.className = `wine-select-item ${isSelected ? 'selected' : ''}`;
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${wine.name}</strong>
+                            <br>
+                            <small class="text-muted">
+                                ${wine.variety} • ${wine.country} • $${wine.price}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge bg-${getWineTypeColor(wine.variety)} badge-small">${wine.rating}/100</span>
+                        </div>
+                    </div>
+                `;
+                
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleWineSelection(wine);
+                };
+                
+                container.appendChild(item);
+            });
+        }
+
+        function toggleWineSelection(wine) {
+            const index = selectedWines.findIndex(w => w.id === wine.id);
+            
+            if (index === -1) {
+                selectedWines.push(wine);
+            } else {
+                selectedWines.splice(index, 1);
+            }
+            
+            updateSelectedWinesList();
+            renderWineSelectList(document.getElementById('wineSearch').value);
+            saveSelections();
+            
+            // Активируем кнопку рекомендаций если выбрано хотя бы одно вино
+            document.getElementById('tasteRecommendBtn').disabled = selectedWines.length === 0;
+        }
+
+        function updateSelectedWinesList() {
+            const container = document.getElementById('selectedWinesList');
+            const count = document.getElementById('selectedCount');
+            
+            count.textContent = selectedWines.length;
+            
+            if (selectedWines.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted p-3"><i class="bi bi-inbox"></i><br>Выберите вина из списка</div>';
+                return;
+            }
+            
+            container.innerHTML = selectedWines.map((wine, index) => `
+                <div class="selected-wine-card card mb-2">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div style="flex: 1;">
+                                <strong>${wine.name}</strong>
+                                <div class="text-muted" style="font-size: 0.8em;">
+                                    ${wine.variety} • ${wine.country} • $${wine.price}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="badge bg-${getWineTypeColor(wine.variety)}">${wine.rating}</span>
+                                <button class="btn btn-sm btn-outline-danger remove-btn ms-2" 
+                                        onclick="removeSelectedWine(${index})">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeSelectedWine(index) {
+            selectedWines.splice(index, 1);
+            updateSelectedWinesList();
+            renderWineSelectList(document.getElementById('wineSearch').value);
+            saveSelections();
+            document.getElementById('tasteRecommendBtn').disabled = selectedWines.length === 0;
+        }
+
+        function clearSelectedWines() {
+            if (selectedWines.length === 0) return;
+            
+            if (confirm(`Удалить все ${selectedWines.length} выбранных вин?`)) {
+                selectedWines = [];
+                updateSelectedWinesList();
+                renderWineSelectList(document.getElementById('wineSearch').value);
+                saveSelections();
+                document.getElementById('tasteRecommendBtn').disabled = true;
+                showAlert('Все вина удалены из выбора', 'info');
+            }
+        }
+
+        function filterWineList() {
+            const filterText = document.getElementById('wineSearch').value;
+            renderWineSelectList(filterText);
+        }
+
+        async function getTasteRecommendations() {
+            if (selectedWines.length === 0) {
+                showAlert('Пожалуйста, выберите хотя бы одно вино', 'warning');
+                return;
+            }
+
+            showLoading('taste');
+            
+            try {
+                const response = await fetch('/api/recommend/taste', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        selected_wines: selectedWines.map(w => w.id)
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading('taste');
+                
+                if (data.error) throw new Error(data.error);
+
+                tasteResults.current = data.recommendations;
+                tasteResults.page = 1;
+                
+                displayTasteResults();
+                displayLLMComment('taste', data.llm_comment);
+                displayPreferenceAnalysis(data.preference_analysis);
+                
+            } catch (error) {
+                hideLoading('taste');
+                showAlert(`Ошибка: ${error.message}`, 'danger');
+            }
+        }
+
+        function displayTasteResults() {
+            const section = document.getElementById('tasteResultsSection');
+            const welcome = document.getElementById('tasteWelcome');
+            const count = document.getElementById('tasteResultsCount');
+            const container = document.getElementById('tasteResultsContainer');
+
+            if (tasteResults.current.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info">Нет рекомендаций</div></div>';
+                count.textContent = 'Персональные рекомендации (0)';
+            } else {
+                count.textContent = `Персональные рекомендации (${tasteResults.current.length})`;
+                displayResultsPage('taste');
+            }
+            
+            section.style.display = 'block';
+            welcome.style.display = 'none';
+        }
+
+        function displayPreferenceAnalysis(analysis) {
+            const container = document.getElementById('preferenceAnalysis');
+            
+            if (!analysis || Object.keys(analysis).length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted">Недостаточно данных для анализа</p></div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Любимые сорта
+            if (analysis.favorite_varieties && analysis.favorite_varieties.length > 0) {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <h6><i class="bi bi-graph-up text-primary"></i> Любимые сорта:</h6>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${analysis.favorite_varieties.map(v => `
+                                <span class="badge bg-primary">${v.variety} (${v.count})</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Предпочитаемые страны
+            if (analysis.preferred_countries && analysis.preferred_countries.length > 0) {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <h6><i class="bi bi-globe text-success"></i> Предпочитаемые страны:</h6>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${analysis.preferred_countries.map(c => `
+                                <span class="badge bg-success">${c.country} (${c.count})</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Средняя цена
+            if (analysis.average_price) {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <h6><i class="bi bi-currency-dollar text-warning"></i> Средняя цена:</h6>
+                        <p class="mb-0">$${analysis.average_price.toFixed(2)}</p>
+                    </div>
+                `;
+            }
+            
+            // Средний рейтинг
+            if (analysis.average_rating) {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <h6><i class="bi bi-star text-info"></i> Средний рейтинг:</h6>
+                        <p class="mb-0">${analysis.average_rating.toFixed(1)}/100</p>
+                    </div>
+                `;
+            }
+            
+            // Диапазон цен
+            if (analysis.price_range) {
+                html += `
+                    <div class="col-md-12 mb-3">
+                        <h6><i class="bi bi-cash-stack text-danger"></i> Диапазон цен:</h6>
+                        <p class="mb-0">От $${analysis.price_range.min} до $${analysis.price_range.max}</p>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html || '<div class="col-12"><p class="text-muted">Анализ предпочтений недоступен</p></div>';
+        }
+
+        // ============ ТАБ 3: Функции для простого поиска ============
+        async function getSimpleRecommendations() {
+            const query = document.getElementById('simpleQuery').value;
+            
+            if (!query.trim()) {
+                showAlert('Пожалуйста, опишите, какое вино вы ищете.', 'warning');
+                return;
+            }
+
+            showLoading('simple');
+            
+            try {
+                const response = await fetch('/api/recommend/simple', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+                hideLoading('simple');
+                
+                if (data.error) throw new Error(data.error);
+
+                simpleResults.current = data.recommendations;
+                simpleResults.page = 1;
+                
+                displaySimpleResults();
+                displayLLMComment('simple', data.llm_comment);
+                
+            } catch (error) {
+                hideLoading('simple');
+                showAlert(`Ошибка: ${error.message}`, 'danger');
+            }
+        }
+
+        function displaySimpleResults() {
+            const section = document.getElementById('simpleResultsSection');
+            const container = document.getElementById('simpleResultsContainer');
+
+            if (simpleResults.current.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info">Ничего не найдено</div></div>';
+            } else {
+                displayResultsPage('simple');
+            }
+            
+            section.style.display = 'block';
+        }
+
+        function setSimpleQuery(query) {
+            document.getElementById('simpleQuery').value = query;
+        }
+
+        // ============ ОБЩИЕ ФУНКЦИИ ============
+        function displayResultsPage(tab) {
+            let results, container;
+            
+            if (tab === 'filter') {
+                results = filterResults.current;
+                container = document.getElementById('filterResultsContainer');
+            } else if (tab === 'taste') {
+                results = tasteResults.current;
+                container = document.getElementById('tasteResultsContainer');
+            } else {
+                results = simpleResults.current;
+                container = document.getElementById('simpleResultsContainer');
+            }
+            
+            const startIndex = (results.page - 1) * resultsPerPage;
+            const endIndex = startIndex + resultsPerPage;
+            const pageResults = results.slice(startIndex, endIndex);
+
+            container.innerHTML = pageResults.map((wine, index) => createWineCard(wine, startIndex + index + 1)).join('');
+        }
+
+        function createWineCard(wine, number) {
+            const similarityPercentage = Math.round(wine.similarity_score * 100);
+            
+            return `
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card wine-card h-100" onclick="showWineDetails(${JSON.stringify(wine).replace(/"/g, '&quot;')})" style="cursor: pointer;">
+                        <div class="wine-type-badge">
+                            <span class="badge ${getVarietyBadgeClass(wine.variety)}">${wine.variety}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <span class="badge bg-secondary">#${number}</span>
+                                    <h5 class="card-title mt-2 mb-1">${wine.name}</h5>
+                                </div>
+                                <span class="price-tag">$${wine.price}</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <span class="badge bg-light text-dark">
+                                    <i class="bi bi-geo-alt"></i> ${wine.country}
+                                </span>
+                                <span class="badge bg-light text-dark ms-1">
+                                    <i class="bi bi-star-fill text-warning"></i> ${wine.rating}/100
+                                </span>
+                            </div>
+                            
+                            <p class="card-text text-muted" style="font-size: 0.9em; height: 60px; overflow: hidden;">
+                                ${wine.description.substring(0, 120)}...
+                            </p>
+                            
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small class="text-muted">Совпадение:</small>
+                                    <small class="fw-bold" style="color: ${getSimilarityColor(similarityPercentage)}">
+                                        ${similarityPercentage}%
+                                    </small>
+                                </div>
+                                <div class="similarity-meter">
+                                    <div class="similarity-fill" style="width: ${similarityPercentage}%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mt-3">
+                                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); addToFavorites('${wine.id}')">
+                                    <i class="bi bi-heart"></i> Сохранить
+                                </button>
+                                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); getPairingRecommendation('${wine.id}')">
+                                    <i class="bi bi-egg-fried"></i> Что к нему?
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setupPagination(tab) {
+            let results, paginationId;
+            
+            if (tab === 'filter') {
+                results = filterResults.current;
+                paginationId = 'filterPagination';
+            }
+            // Для других табов можно добавить аналогично
+            
+            const totalPages = Math.ceil(results.length / resultsPerPage);
+            const pagination = document.getElementById(paginationId);
+            const ul = pagination.querySelector('ul');
+            
+            ul.innerHTML = '';
+            
+            // Кнопка "Назад"
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${results.page === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage('${tab}', ${results.page - 1}); return false;"><i class="bi bi-chevron-left"></i></a>`;
+            ul.appendChild(prevLi);
+            
+            // Номера страниц
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${i === results.page ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link" href="#" onclick="changePage('${tab}', ${i}); return false;">${i}</a>`;
+                ul.appendChild(li);
+            }
+            
+            // Кнопка "Вперед"
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${results.page === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage('${tab}', ${results.page + 1}); return false;"><i class="bi bi-chevron-right"></i></a>`;
+            ul.appendChild(nextLi);
+        }
+
+        function changePage(tab, page) {
+            let results;
+            if (tab === 'filter') results = filterResults;
+            else if (tab === 'taste') results = tasteResults;
+            else results = simpleResults;
+            
+            const totalPages = Math.ceil(results.current.length / resultsPerPage);
+            if (page < 1 || page > totalPages) return;
+            
+            results.page = page;
+            displayResultsPage(tab);
+            
+            if (tab === 'filter') setupPagination(tab);
+            
+            // Плавная прокрутка к результатам
+            const resultsSection = document.getElementById(`${tab}ResultsSection`);
+            if (resultsSection) {
+                window.scrollTo({
+                    top: resultsSection.offsetTop - 100,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        function displayLLMComment(tab, comment) {
+            const element = document.getElementById(`${tab}LLMCommentText`);
+            if (element) {
+                element.textContent = comment;
+            }
+        }
+
+        function showLoading(tab) {
+            const btn = document.querySelector(`#${tab}-tab-pane .btn-primary`);
+            if (btn) {
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Загрузка...';
+                btn.disabled = true;
+            }
+        }
+
+        function hideLoading(tab) {
+            const btn = document.querySelector(`#${tab}-tab-pane .btn-primary`);
+            if (btn) {
+                if (tab === 'filter') btn.innerHTML = '<i class="bi bi-search"></i> Найти вина';
+                else if (tab === 'taste') btn.innerHTML = '<i class="bi bi-magic"></i> Получить рекомендации';
+                else btn.innerHTML = '<i class="bi bi-stars"></i> Получить рекомендации';
+                btn.disabled = false;
+            }
+        }
+
+        // Вспомогательные функции
+        function initializeCountryFilter() {
+            const countries = ['Italy', 'Portugal', 'US', 'Spain', 'France', 'Germany', 'Argentina', 'Chile', 'Australia', 'Austria', 'South Africa', 'New Zealand', 'Israel', 'Hungary', 'Greece', 'Romania', 'Mexico', 'Canada', 'Turkey', 'Czech Republic', 'Slovenia', 'Luxembourg', 'Croatia', 'Georgia', 'Uruguay', 'England', 'Lebanon', 'Serbia', 'Brazil', 'Moldova', 'Morocco', 'Peru', 'India', 'Bulgaria', 'Cyprus', 'Armenia', 'Switzerland', 'Bosnia and Herzegovina', 'Ukraine', 'Slovakia', 'Macedonia', 'China', 'Egypt'];
+            
+            const filter = document.getElementById('countryFilter');
+            countries.sort().forEach(country => {
+                const option = document.createElement('option');
+                option.value = country;
+                option.textContent = country;
+                filter.appendChild(option);
+            });
+        }
+
+        function initializeVarietyFilter() {
+            const popularVarieties = ['Red Blend', 'Cabernet Sauvignon', 'Merlot', 'Pinot Noir', 'Chardonnay', 'Sauvignon Blanc', 'Syrah', 'Malbec', 'Riesling', 'Zinfandel', 'Sangiovese', 'Tempranillo'];
+            
+            const filter = document.getElementById('varietyFilter');
+            popularVarieties.forEach(variety => {
+                if (variety !== 'Red Blend') {
+                    const option = document.createElement('option');
+                    option.value = variety;
+                    option.textContent = variety;
+                    filter.appendChild(option);
+                }
+            });
+        }
+
+        function getWineTypeColor(variety) {
+            const redVarieties = ['Red Blend', 'Cabernet', 'Merlot', 'Pinot Noir', 'Syrah', 'Malbec', 'Zinfandel', 'Sangiovese', 'Tempranillo'];
+            const whiteVarieties = ['Chardonnay', 'Sauvignon', 'Riesling', 'Pinot Gris', 'Pinot Grigio'];
+            
+            if (redVarieties.some(v => variety.includes(v))) return 'danger';
+            if (whiteVarieties.some(v => variety.includes(v))) return 'warning';
+            return 'secondary';
+        }
+
+        function getVarietyBadgeClass(variety) {
+            const color = getWineTypeColor(variety);
+            return `bg-${color} ${color === 'warning' ? 'text-dark' : ''}`;
+        }
+
+        function getSimilarityColor(percentage) {
+            if (percentage >= 80) return '#28a745';
+            if (percentage >= 60) return '#ffc107';
+            return '#dc3545';
+        }
+
+        function saveSelections() {
+            localStorage.setItem('selectedWines', JSON.stringify(selectedWines));
+        }
+
+        function loadSavedSelections() {
+            const saved = localStorage.getItem('selectedWines');
+            if (saved) {
+                try {
+                    selectedWines = JSON.parse(saved);
+                    updateSelectedWinesList();
+                    renderWineSelectList();
+                    document.getElementById('tasteRecommendBtn').disabled = selectedWines.length === 0;
+                } catch (e) {
+                    console.error('Error loading saved selections:', e);
+                }
+            }
+        }
+
+        function resetFilters() {
+            document.getElementById('searchQuery').value = '';
+            document.getElementById('varietyFilter').value = 'Red Blend';
+            document.getElementById('countryFilter').value = '';
+            document.getElementById('maxPriceFilter').value = 100;
+            document.getElementById('priceValue').textContent = '$100';
+            
+            document.getElementById('filterResultsSection').style.display = 'none';
+            document.getElementById('filterWelcome').style.display = 'block';
+            
+            localStorage.removeItem('wineFilters');
+            showAlert('Фильтры сброшены', 'info', 2000);
+        }
+
+        function showAlert(message, type = 'info', duration = 3000) {
+            // Удаляем старые алерты
+            const oldAlerts = document.querySelectorAll('.alert-toast');
+            oldAlerts.forEach(alert => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            });
+        
+            // Создаем новый алерт
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-toast position-fixed`;
+            alertDiv.style.cssText = `
+                top: 20px;
+                right: 20px;
+                z-index: 1050;
+                min-width: 300px;
+                max-width: 400px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border-radius: 8px;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            // Иконки для разных типов алертов
+            const icons = {
+                'success': 'bi-check-circle-fill',
+                'danger': 'bi-exclamation-triangle-fill',
+                'warning': 'bi-exclamation-circle-fill',
+                'info': 'bi-info-circle-fill'
+            };
+            
+            alertDiv.innerHTML = `
+                <div class="d-flex align-items-start">
+                    <div class="flex-shrink-0 me-2">
+                        <i class="bi ${icons[type] || 'bi-info-circle-fill'}"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div style="white-space: pre-wrap;">${message}</div>
+                    </div>
+                    <div class="flex-shrink-0 ms-2">
+                        <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.parentElement.remove()"></button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // CSS анимация
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOut {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Автоматическое удаление
+            if (duration > 0) {
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.style.animation = 'slideOut 0.3s ease';
+                        setTimeout(() => {
+                            if (alertDiv.parentNode) {
+                                alertDiv.remove();
+                            }
+                        }, 300);
+                    }
+                }, duration);
+            }
+            
+            // Удаление при клике вне алерта
+            document.addEventListener('click', function removeAlertOnOutsideClick(e) {
+                if (!alertDiv.contains(e.target) && !e.target.classList.contains('btn-close')) {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                        document.removeEventListener('click', removeAlertOnOutsideClick);
+                    }
+                }
+            });
+        }
+
+        // Функции для работы с модальным окном (остаются без изменений)
+        function showWineDetails(wine) {
+            const modalElement = document.getElementById('wineDetailsModal');
+            
+            if (!modalElement) {
+                // Создаем модальное окно если его нет
+                createWineDetailsModal();
+            }
+            
+            // Заполняем данными
+            document.getElementById('wineDetailsTitle').textContent = wine.name || 'Без названия';
+            document.getElementById('wineDetailsDescription').textContent = wine.description || 'Описание отсутствует';
+            document.getElementById('wineDetailsRating').textContent = `Рейтинг: ${wine.rating || 0}/100`;
+            document.getElementById('wineDetailsPrice').textContent = `$${wine.price || 0}`;
+            
+            // Происхождение
+            let origin = wine.country || 'Не указана';
+            if (wine.region && wine.region !== 'Unknown') {
+                origin += ` • ${wine.region}`;
+            }
+            document.getElementById('wineDetailsOrigin').textContent = origin;
+            
+            // Характеристики
+            let characteristics = wine.variety || 'Сорт не указан';
+            if (wine.winery) {
+                characteristics += ` • ${wine.winery}`;
+            }
+            document.getElementById('wineDetailsCharacteristics').textContent = characteristics;
+            
+            // Картинка (используем API для картинок вин или заглушку)
+            const wineImage = document.getElementById('wineDetailsImage');
+            const searchTerm = encodeURIComponent(`${wine.name} ${wine.variety} wine`);
+            wineImage.src = `https://source.unsplash.com/300x300/?wine,${wine.variety?.toLowerCase() || 'wine-bottle'}`;
+            wineImage.alt = wine.name;
+            
+            // Генерация AI-рекомендации
+            generateWineAIComment(wine);
+            
+            // Показываем модальное окно
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            
+            // Сохраняем текущее вино для функций добавления в избранное
+            modalElement.dataset.currentWineId = wine.id;
+            modalElement.dataset.currentWineName = wine.name;
+        }
+        
+        // Создание модального окна если его нет в HTML
+        function createWineDetailsModal() {
+            const modalHTML = `
+            <div class="modal fade" id="wineDetailsModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="wineDetailsTitle"></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="text-center">
+                                        <img id="wineDetailsImage" src="" alt="" class="img-fluid rounded mb-3" style="max-height: 300px; object-fit: cover;">
+                                        <div class="mb-3">
+                                            <span id="wineDetailsRating" class="badge bg-warning fs-6"></span>
+                                            <span id="wineDetailsPrice" class="badge bg-success fs-6 ms-2"></span>
+                                        </div>
+                                        <button class="btn btn-outline-danger w-100 mb-2" onclick="addToFavorites()">
+                                            <i class="bi bi-heart"></i> Добавить в избранное
+                                        </button>
+                                        <button class="btn btn-outline-primary w-100" onclick="shareWine()">
+                                            <i class="bi bi-share"></i> Поделиться
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <h6><i class="bi bi-info-circle"></i> Описание:</h6>
+                                    <p id="wineDetailsDescription" class="mb-3"></p>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-6">
+                                            <h6><i class="bi bi-geo-alt"></i> Происхождение:</h6>
+                                            <p id="wineDetailsOrigin" class="mb-0"></p>
+                                        </div>
+                                        <div class="col-6">
+                                            <h6><i class="bi bi-graph-up"></i> Характеристики:</h6>
+                                            <p id="wineDetailsCharacteristics" class="mb-0"></p>
+                                        </div>
+                                    </div>
+                                    
+                                    <h6><i class="bi bi-emoji-smile"></i> AI-рекомендация:</h6>
+                                    <div class="alert alert-light border" id="wineDetailsAIRecommendation">
+                                        <div class="spinner-border spinner-border-sm text-danger me-2"></div>
+                                        Генерация рекомендации...
+                                    </div>
+                                    
+                                    <h6><i class="bi bi-egg-fried"></i> С чем сочетать:</h6>
+                                    <div class="alert alert-light border" id="wineDetailsPairing">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                                        Загрузка рекомендаций по сочетанию...
+                                    </div>
+                                    
+                                    <h6><i class="bi bi-clock"></i> Когда пить:</h6>
+                                    <div class="alert alert-light border" id="wineDetailsOccasion">
+                                        <div class="spinner-border spinner-border-sm text-success me-2"></div>
+                                        Определяем лучшие моменты...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                            <button type="button" class="btn btn-danger" onclick="saveWineForLater()">
+                                <i class="bi bi-bookmark"></i> Сохранить на потом
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+        
+        // Генерация AI-комментария для вина
+        async function generateWineAIComment(wine) {
+            const commentElement = document.getElementById('wineDetailsAIRecommendation');
+            
+            try {
+                const response = await fetch('/api/wine/ai-comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ wine })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    commentElement.innerHTML = `<i class="bi bi-robot text-danger me-2"></i>${data.comment}`;
+                } else {
+                    commentElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-2"></i>Не удалось загрузить рекомендацию';
+                }
+            } catch (error) {
+                commentElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-2"></i>Ошибка соединения';
+            }
+            
+            // Загружаем рекомендации по сочетанию
+            loadWinePairing(wine.id || wine.name);
+            loadWineOccasion(wine);
+        }
+        
+        // Загрузка рекомендаций по сочетанию с едой
+        async function loadWinePairing(wineId) {
+            const pairingElement = document.getElementById('wineDetailsPairing');
+            
+            try {
+                const response = await fetch(`/api/wine/pairing/${encodeURIComponent(wineId)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    pairingElement.innerHTML = `<i class="bi bi-egg-fried text-primary me-2"></i>${data.pairing}`;
+                }
+            } catch (error) {
+                pairingElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-2"></i>Не удалось загрузить рекомендации по сочетанию';
+            }
+        }
+        
+        // Загрузка рекомендаций по поводам
+        async function loadWineOccasion(wine) {
+            const occasionElement = document.getElementById('wineDetailsOccasion');
+            
+            try {
+                const response = await fetch('/api/wine/occasion', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wine })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    occasionElement.innerHTML = `<i class="bi bi-clock text-success me-2"></i>${data.occasion}`;
+                }
+            } catch (error) {
+                occasionElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-2"></i>Не удалось определить подходящие моменты';
+            }
+        }
+        
+        function addToFavorites(wineId = null) {
+            try {
+                // Если wineId не передан, берем из модального окна
+                if (!wineId) {
+                    const modal = document.getElementById('wineDetailsModal');
+                    wineId = modal?.dataset.currentWineId;
+                    const wineName = modal?.dataset.currentWineName || 'это вино';
+                } else {
+                    const wineName = 'это вино';
+                }
+                
+                if (!wineId) {
+                    showAlert('Не удалось определить вино', 'warning');
+                    return;
+                }
+                
+                // Получаем сохраненные избранные вина
+                let favorites = JSON.parse(localStorage.getItem('wineFavorites') || '[]');
+                
+                // Проверяем, не добавлено ли уже
+                if (favorites.includes(wineId)) {
+                    showAlert('Это вино уже в избранном!', 'info');
+                    return;
+                }
+                
+                // Добавляем
+                favorites.push(wineId);
+                
+                // Сохраняем (ограничиваем 50 винами)
+                if (favorites.length > 50) {
+                    favorites = favorites.slice(-50);
+                }
+                
+                localStorage.setItem('wineFavorites', JSON.stringify(favorites));
+                
+                // Показываем уведомление
+                showAlert('<i class="bi bi-heart-fill text-danger"></i> Вино добавлено в избранное!', 'success');
+                
+                // Обновляем иконку если есть
+                updateFavoriteIcon(wineId, true);
+                
+                // Запускаем анимацию сердца
+                triggerHeartAnimation();
+                
+            } catch (error) {
+                console.error('Error adding to favorites:', error);
+                showAlert('Ошибка при добавлении в избранное', 'danger');
+            }
+        }
+        
+        // Анимация сердца
+        function triggerHeartAnimation() {
+            const heart = document.createElement('div');
+            heart.innerHTML = '<i class="bi bi-heart-fill text-danger" style="font-size: 2rem;"></i>';
+            heart.style.cssText = `
+                position: fixed;
+                z-index: 9999;
+                animation: floatUp 1.5s ease-out forwards;
+                pointer-events: none;
+            `;
+            
+            // Позиционируем в центре экрана
+            heart.style.left = '50%';
+            heart.style.top = '50%';
+            heart.style.transform = 'translate(-50%, -50%)';
+            
+            document.body.appendChild(heart);
+            
+            // CSS для анимации
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes floatUp {
+                    0% {
+                        opacity: 1;
+                        transform: translate(-50%, -50%) scale(1);
+                    }
+                    100% {
+                        opacity: 0;
+                        transform: translate(-50%, -150px) scale(1.5);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Удаляем после анимации
+            setTimeout(() => {
+                heart.remove();
+                style.remove();
+            }, 1500);
+        }
+        
+        // Обновление иконки избранного
+        function updateFavoriteIcon(wineId, isFavorite) {
+            // Ищем все кнопки с этим wineId
+            const buttons = document.querySelectorAll(`[onclick*="addToFavorites('${wineId}')"]`);
+            buttons.forEach(btn => {
+                if (isFavorite) {
+                    btn.innerHTML = '<i class="bi bi-heart-fill"></i> В избранном';
+                    btn.classList.remove('btn-outline-danger');
+                    btn.classList.add('btn-danger');
+                } else {
+                    btn.innerHTML = '<i class="bi bi-heart"></i> В избранное';
+                    btn.classList.remove('btn-danger');
+                    btn.classList.add('btn-outline-danger');
+                }
+            });
+        }
+        
+        // Удаление из избранного
+        function removeFromFavorites(wineId) {
+            let favorites = JSON.parse(localStorage.getItem('wineFavorites') || '[]');
+            favorites = favorites.filter(id => id !== wineId);
+            localStorage.setItem('wineFavorites', JSON.stringify(favorites));
+            updateFavoriteIcon(wineId, false);
+            showAlert('Вино удалено из избранного', 'info');
+        }
+        
+        // Проверка, в избранном ли вино
+        function isFavorite(wineId) {
+            const favorites = JSON.parse(localStorage.getItem('wineFavorites') || '[]');
+            return favorites.includes(wineId);
+        }
+        
+        async function getPairingRecommendation(wineId) {
+            try {
+                // Показываем загрузку
+                showAlert('<div class="spinner-border spinner-border-sm me-2"></div> Ищем идеальные сочетания...', 'info', 5000);
+                
+                const response = await fetch(`/api/wine/${wineId}/pairing`);
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                
+                const data = await response.json();
+                
+                // Создаем красивое модальное окно с рекомендациями
+                const pairingModalHTML = `
+                <div class="modal fade" id="pairingModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title"><i class="bi bi-egg-fried"></i> Идеальные сочетания</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-light">
+                                    <h6><i class="bi bi-lightbulb text-warning"></i> Советы от нашего AI-сомелье:</h6>
+                                    <p class="mb-0 mt-2">${data.pairing}</p>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <h6><i class="bi bi-clock text-success"></i> Когда подавать:</h6>
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">🎂 На праздничный ужин</li>
+                                            <li class="list-group-item">🍽️ К романтическому ужину</li>
+                                            <li class="list-group-item">🎉 На вечеринку с друзьями</li>
+                                            <li class="list-group-item">🍷 Для дегустации вин</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <h6><i class="bi bi-thermometer text-danger"></i> Температура подачи:</h6>
+                                        <div class="alert alert-info">
+                                            <i class="bi bi-info-circle"></i> Рекомендуемая температура: 
+                                            <strong>${getServingTemperature(wineId)}°C</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                                <button type="button" class="btn btn-success" onclick="savePairingRecommendation(${wineId})">
+                                    <i class="bi bi-bookmark"></i> Сохранить советы
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+                
+                // Удаляем старую модалку если есть
+                const oldModal = document.getElementById('pairingModal');
+                if (oldModal) oldModal.remove();
+                
+                // Добавляем новую
+                document.body.insertAdjacentHTML('beforeend', pairingModalHTML);
+                
+                // Показываем
+                const modal = new bootstrap.Modal(document.getElementById('pairingModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Error getting pairing recommendation:', error);
+                showAlert('Не удалось получить рекомендации по сочетанию', 'danger');
+            }
+        }
+        
+        // Вспомогательная функция для температуры подачи
+        function getServingTemperature(wineId) {
+            // В реальном приложении здесь была бы логика определения температуры
+            const temperatures = {
+                'red': '16-18',
+                'white': '8-12',
+                'sparkling': '6-8',
+                'rose': '10-12',
+                'dessert': '6-8'
+            };
+            
+            // Определяем тип вина по названию или сорту
+            const wineCard = document.querySelector(`[onclick*="${wineId}"]`)?.closest('.wine-card');
+            if (wineCard) {
+                const variety = wineCard.querySelector('.badge').textContent.toLowerCase();
+                if (variety.includes('red') || variety.includes('cabernet') || variety.includes('merlot')) {
+                    return temperatures.red;
+                } else if (variety.includes('white') || variety.includes('chardonnay') || variety.includes('sauvignon')) {
+                    return temperatures.white;
+                } else if (variety.includes('sparkling') || variety.includes('champagne')) {
+                    return temperatures.sparkling;
+                }
+            }
+            
+            return temperatures.red; // По умолчанию для красного вина
+        }
+        
+        // Сохранение рекомендаций по сочетанию
+        function savePairingRecommendation(wineId) {
+            const pairingText = document.querySelector('#pairingModal .alert-light p').textContent;
+            const wineName = document.querySelector(`[onclick*="addToFavorites('${wineId}')"]`)?.closest('.wine-card')?.querySelector('.card-title')?.textContent || 'Вино';
+            
+            const pairingData = {
+                wineId,
+                wineName,
+                pairing: pairingText,
+                savedAt: new Date().toISOString()
+            };
+            
+            let savedPairings = JSON.parse(localStorage.getItem('winePairings') || '[]');
+            savedPairings.push(pairingData);
+            localStorage.setItem('winePairings', JSON.stringify(savedPairings));
+            
+            showAlert('Рекомендации по сочетанию сохранены!', 'success');
+            
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('pairingModal'));
+            modal.hide();
+        }
+    </script>
+ </body>
+ </html>
