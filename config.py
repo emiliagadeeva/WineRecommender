@@ -1,8 +1,8 @@
 import os
 
 # Настройки Google Drive
-CSV_URL = "https://drive.google.com/uc?export=download&id=YOUR_CSV_FILE_ID"
-EMBEDDINGS_URL = "https://drive.google.com/uc?export=download&id=YOUR_PKL_FILE_ID"
+CSV_URL = "https://drive.google.com/file/d/18mwRZRlY3f6M6nN6VmiHKzDAAZxfEF7A"
+EMBEDDINGS_URL = "https://drive.google.com/file/d/1w7to6R0qf2h0-yBXwJl62-pRWN5LP60I"
 
 # Или локальные файлы для разработки
 LOCAL_CSV_PATH = None
